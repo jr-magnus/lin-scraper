@@ -6,8 +6,8 @@ Created on Sat Nov 14 18:41:04 2020
 @author: jr-magnus
 """
 from bs4 import BeautifulSoup
-import requests
 from time import mktime, strptime
+import requests
 import gui
 import re
 
@@ -31,7 +31,7 @@ def login_to_bbo():
     return session, credentials[0]
 
 
-def prompt_for_myhands_details(username_default):
+def search_window(username_default):
     while True:
         try:
             details = gui.specify_search_window(username_default)
@@ -46,13 +46,13 @@ def prompt_for_myhands_details(username_default):
 
 
 def download_myhands_page(session, username):
-    username, start_time, end_time = prompt_for_myhands_details(username)
+    username, start_time, end_time = search_window(username)
     return session.get(
         f"https://www.bridgebase.com/myhands/hands.php?offset=0&username={username}&start_time={start_time}&end_time={end_time}"
     ).text.strip()
 
 
-def prompts_for_included_tourneys(soup):
+def pick_tournaments(soup):
     choices = [tr.text for tr in soup.find_all(class_="tourneyName")]
     if len(choices) == 1:
         choices.append('')
@@ -115,7 +115,7 @@ if __name__ == '__main__':
 
     while True:
         myhands_soup = BeautifulSoup(download_myhands_page(bbo_session, bbo_username), 'html.parser')
-        included_tourneys = prompts_for_included_tourneys(myhands_soup)
+        included_tourneys = pick_tournaments(myhands_soup)
 
         if included_tourneys is None:
             gui.no_tournaments_found()
