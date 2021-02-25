@@ -7,70 +7,42 @@ Created on Sat Nov 14 18:41:04 2020
 """
 from bs4 import BeautifulSoup
 import requests
-from time import mktime, strptime, strftime, localtime
-import easygui
+from time import mktime, strptime
+import gui
 import re
-
-
-GUI_TITLE = 'LIN Scraper jr-magnus@github.com'
-SECONDS_IN_DAY = 60*60*24
-LOGIN_UNSUCCESSFUL = 'Username or password incorrect, please try again'
-EXCEPTION_MESSAGE = """
-This program has encountered a critical error and will now terminate. 
-Please report this problem at github.com/jr-magnus/lin-scraper.\n\n\n
-"""
-
-
-def get_credentials():
-    return easygui.multpasswordbox(
-        msg='Log in to BBO',
-        title=GUI_TITLE,
-        fields=['Username', 'Password']
-    )
 
 
 def login_to_bbo():
     session = requests.session()
 
     while True:
-        credentials = get_credentials()
+        credentials = gui.bbo_credentials()
         if credentials is None:
             exit()
         response = session.post(
             f'https://www.bridgebase.com/myhands/myhands_login.php?t=%2Fmyhands%2Findex.php%3F&offset=0',
             data={'username': credentials[0], 'password': credentials[1]}
         )
-        if response.text.find(LOGIN_UNSUCCESSFUL) == -1:
+        if response.text.find('Username or password incorrect, please try again') == -1:
             break
         else:
-            easygui.msgbox(msg=LOGIN_UNSUCCESSFUL, title=GUI_TITLE)
+            gui.login_unsuccessful()
 
     return session, credentials[0]
 
 
-def get_myhands_details(username_default, start_default, end_default):
-    return easygui.multenterbox(
-        msg='Get hands played by a user between two dates',
-        title=GUI_TITLE,
-        fields=['Username', 'Start date', 'End date'],
-        values=[username_default, start_default, end_default]
-    )
-
-
 def prompt_for_myhands_details(username_default):
-    start_default = strftime("%d.%m.%Y", localtime(mktime(localtime()) - SECONDS_IN_DAY))
-    end_default = strftime("%d.%m.%Y", localtime())
     while True:
         try:
-            details = get_myhands_details(username_default, start_default, end_default)
+            details = gui.specify_search_window(username_default)
             if details is None:
                 exit()
             username, start_input, end_input = details
             start_time = int(mktime(strptime(start_input, "%d.%m.%Y")))
-            end_time = int(mktime(strptime(end_input, "%d.%m.%Y"))) + SECONDS_IN_DAY
+            end_time = int(mktime(strptime(end_input, "%d.%m.%Y"))) + 60*60*24
             return username, start_time, end_time
         except ValueError as e:
-            easygui.msgbox(msg=e, title=GUI_TITLE)
+            gui.myhands_value_error(e)
 
 
 def download_myhands_page(session, username):
@@ -86,13 +58,7 @@ def prompts_for_included_tourneys(soup):
         choices.append('')
     elif len(choices) == 0:
         return None
-
-    chosen = easygui.multchoicebox(
-        msg='Pick tournaments/matches to download',
-        title=GUI_TITLE,
-        choices=choices
-    )
-
+    chosen = gui.tournament_picker(choices)
     if chosen is None:
         return []
     return [t for t in chosen if t != '']
@@ -109,10 +75,10 @@ def extract_lin_links(soup, tourneys):
                 tourneyName = row.find(class_="tourneyName").text
                 if tourneyName in tourneys:
                     lin_map[tourneyName] = []
-                    flag = True
+                    included = True
                 else:
-                    flag = False
-            if (row.get("class", []) == ["team"] or row.get("class", []) == ["tourney"]) and flag:
+                    included = False
+            if (row.get("class", []) == ["team"] or row.get("class", []) == ["tourney"]) and included:
                 lin_url = row.find(class_="movie").find_all("a")[1]["href"]
                 if lin_url.startswith("fetchlin"):
                     lin_url = f"https://www.bridgebase.com/myhands/{lin_url}"
@@ -120,7 +86,7 @@ def extract_lin_links(soup, tourneys):
 
         return lin_map
     except Exception as e:
-        easygui.exceptionbox(msg=EXCEPTION_MESSAGE, title=GUI_TITLE)
+        gui.exception(e)
         exit()
 
 
@@ -130,8 +96,8 @@ def create_safe_filename(filename):
 
 
 def download_lins(session, lin_map):
-    dir_path = easygui.diropenbox(title=GUI_TITLE)
-    easygui.msgbox(msg="Downloading has started in the background. You will be informed by a popup window when it has finished.", title=GUI_TITLE)
+    dir_path = gui.directory()
+    gui.download_started()
     try:
         for tourneyName, urls in lin_map.items():
             for num, url in enumerate(urls, start=1):
@@ -139,9 +105,9 @@ def download_lins(session, lin_map):
                 with open(path_to_lin, "w", encoding="utf-8") as f:
                     f.write(session.get(url).text.strip())
     except Exception as e:
-        easygui.exceptionbox(msg=EXCEPTION_MESSAGE, title=GUI_TITLE)
+        gui.exception(e)
         exit()
-    easygui.msgbox(msg=f"Downloading has finished successfully. Your LIN files are ready in {dir_path}", title=GUI_TITLE)
+    gui.download_finished(dir_path)
 
 
 if __name__ == '__main__':
@@ -152,11 +118,11 @@ if __name__ == '__main__':
         included_tourneys = prompts_for_included_tourneys(myhands_soup)
 
         if included_tourneys is None:
-            easygui.msgbox(msg="No tournaments found, try different date range or user", title=GUI_TITLE)
+            gui.no_tournaments_found()
             continue
 
         if len(included_tourneys) < 1:
-            easygui.msgbox(msg="No tournaments chosen. If you didn't find what you were looking for, try different date range or user", title=GUI_TITLE)
+            gui.no_tournaments_chosen()
             continue
 
         break
