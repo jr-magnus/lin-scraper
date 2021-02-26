@@ -6,10 +6,12 @@ Created on Sat Nov 14 18:41:04 2020
 @author: jr-magnus
 """
 from bs4 import BeautifulSoup
-from time import mktime, strptime
+from time import mktime, strptime, sleep
 import requests
 import gui
 import re
+import multiprocessing
+from functools import partial
 
 
 def login_to_bbo():
@@ -95,15 +97,28 @@ def create_safe_filename(filename):
     return re.sub(r"_+", r"_", safe_name).strip("_")
 
 
+def save_lin_to_file(session, dir_path, name, num, url):
+    path_to_lin = "{}/{}_{:0>2d}.lin".format(dir_path, create_safe_filename(name), num)
+    while True:
+        res = session.get(url)
+        if res.status_code == 200:
+            break
+        sleep(2)
+
+    with open(path_to_lin, "w", encoding="utf-8") as f:
+        f.write(res.text.strip())
+
+
 def download_lins(session, lin_map):
     dir_path = gui.directory()
     gui.download_started()
     try:
-        for tourneyName, urls in lin_map.items():
-            for num, url in enumerate(urls, start=1):
-                path_to_lin = "{}/{}_{:0>2d}.lin".format(dir_path, create_safe_filename(tourneyName), num)
-                with open(path_to_lin, "w", encoding="utf-8") as f:
-                    f.write(session.get(url).text.strip())
+        by_tourney = [[(name, num, url) for num, url in enumerate(urls, start=1)] for name, urls in lin_map.items()]
+        flat = [args for tourney in by_tourney for args in tourney]
+        save_with_dir_and_session = partial(save_lin_to_file, session, dir_path)
+        with multiprocessing.Pool(processes=len(flat)) as pool:
+            res = pool.starmap_async(save_with_dir_and_session, flat)
+            res.wait(30)
     except Exception as e:
         gui.exception(e)
         exit()
