@@ -103,22 +103,22 @@ def save_lin_to_file(session, dir_path, name, num, url):
         res = session.get(url)
         if res.status_code == 200:
             break
-        sleep(2)
+        sleep(1)
 
     with open(path_to_lin, "w", encoding="utf-8") as f:
         f.write(res.text.strip())
 
 
-def download_lins(session, lin_map):
+def download_lins(session, lin_map, processes=8):
     dir_path = gui.directory()
     gui.download_started()
     try:
         by_tourney = [[(name, num, url) for num, url in enumerate(urls, start=1)] for name, urls in lin_map.items()]
         flat = [args for tourney in by_tourney for args in tourney]
         save_with_dir_and_session = partial(save_lin_to_file, session, dir_path)
-        with multiprocessing.Pool(processes=len(flat)) as pool:
+        with multiprocessing.Pool(processes=processes) as pool:
             res = pool.starmap_async(save_with_dir_and_session, flat)
-            res.wait(30)
+            res.wait()
     except Exception as e:
         gui.exception(e)
         exit()
