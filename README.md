@@ -26,7 +26,7 @@ tested this on both my Xubuntu 20.04 and Windows 10 (for a friend).
 
 ## Expected further development
 
- - Asynchronous calls for downloading final LIN files
+ - Asynchronous calls for downloading final LIN files (a WIP on this can be found in a separate branch)
  - Beautify and rework GUI (might need more sophisticated library than 
    EasyGUI)
  - CLI option
